@@ -196,6 +196,24 @@ def admin_dashboard():
 
 def attendance_page():
     st.header('Employee Attendance')
+    # Manual authorization buttons
+    if st.button('Authorize Camera'):
+        st.markdown("""
+            <script>
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(() => alert('Camera access granted!'))
+                .catch(() => alert('Camera access denied!'));
+            </script>
+        """, unsafe_allow_html=True)
+    if st.button('Authorize Location'):
+        st.markdown("""
+            <script>
+            navigator.geolocation.getCurrentPosition(
+                () => alert('Location access granted!'),
+                () => alert('Location access denied!')
+            );
+            </script>
+        """, unsafe_allow_html=True)
     captured_image = st.camera_input('Take a photo')
     recognized_name = None
     recognition_error = None

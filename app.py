@@ -258,12 +258,24 @@ def attendance_page():
         if is_near:
             att_df = load_attendance()
             now = datetime.now()
-            check_type = "Check In" if now.hour < 16 else "Check Out"
-            name = recognized_name if recognized_name else 'Employee'
-            new_row = pd.DataFrame([{'name': name, 'datetime': now, 'latitude': latitude, 'longitude': longitude, 'type': check_type}])
+            today = now.date()
+            # Check if already checked in today
+            already_checked_in = (
+                (att_df['name'] == recognized_name) &
+                (pd.to_datetime(att_df['datetime']).dt.date == today) &
+                (att_df['type'] == 'Check In')
+            ).any() if not att_df.empty else False
+            check_type = "Check Out" if already_checked_in else "Check In"
+            new_row = pd.DataFrame([{'name': recognized_name, 'datetime': now, 'latitude': latitude, 'longitude': longitude, 'type': check_type}])
             att_df = pd.concat([att_df, new_row], ignore_index=True)
             save_attendance(att_df)
-            st.success(f'{check_type} marked for {name}!')
+            st.success(f'{check_type} marked for {recognized_name}!')
+            st.markdown(f"""
+                <script>
+                alert('Attendance {check_type} complete!');
+                window.close();
+                </script>
+                """, unsafe_allow_html=True)
         else:
             st.error(f'You are too far from the company location ({dist:.2f} meters).')
 

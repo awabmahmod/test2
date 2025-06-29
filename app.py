@@ -205,15 +205,41 @@ def attendance_page():
                 .catch(() => alert('Camera access denied!'));
             </script>
         """, unsafe_allow_html=True)
-    if st.button('Authorize Location'):
-        st.markdown("""
-            <script>
-            navigator.geolocation.getCurrentPosition(
-                () => alert('Location access granted!'),
-                () => alert('Location access denied!')
-            );
-            </script>
-        """, unsafe_allow_html=True)
+    # Location access button
+    if 'location_requested' not in st.session_state:
+        st.session_state['location_requested'] = False
+    if st.button('Get Location'):
+        st.session_state['location_requested'] = True
+    latitude, longitude = None, None
+    if st.session_state['location_requested']:
+        js_code = """
+        new Promise((resolve, reject) => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        });
+                    },
+                    (error) => {
+                        resolve({latitude: null, longitude: null, error: error.message});
+                    }
+                );
+            } else {
+                resolve({latitude: null, longitude: null, error: 'Geolocation not supported'});
+            }
+        });
+        """
+        loc = streamlit_js_eval(js_expressions=js_code, key="get_location")
+        latitude = loc.get('latitude') if loc else None
+        longitude = loc.get('longitude') if loc else None
+        if latitude and longitude:
+            st.success(f"Detected location: {latitude}, {longitude}")
+        else:
+            st.warning('Waiting for location permission or location not available.')
+    else:
+        st.info('Click "Get Location" to request location access.')
     captured_image = st.camera_input('Take a photo')
     recognized_name = None
     recognition_error = None
@@ -241,32 +267,6 @@ def attendance_page():
                 recognition_error = 'No face detected in image.'
                 st.error(recognition_error)
                 allow_submit = False
-    js_code = """
-    new Promise((resolve, reject) => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    resolve({
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    });
-                },
-                (error) => {
-                    resolve({latitude: null, longitude: null, error: error.message});
-                }
-            );
-        } else {
-            resolve({latitude: null, longitude: null, error: 'Geolocation not supported'});
-        }
-    });
-    """
-    loc = streamlit_js_eval(js_expressions=js_code, key="get_location")
-    latitude = loc.get('latitude') if loc else None
-    longitude = loc.get('longitude') if loc else None
-    if latitude and longitude:
-        st.success(f"Detected location: {latitude}, {longitude}")
-    else:
-        st.warning('Waiting for location permission...')
     if captured_image and recognized_name and recognized_name != "Unknown":
         st.success(f"Recognized: {recognized_name}")
     submit_disabled = not (captured_image and allow_submit and latitude and longitude)
@@ -277,7 +277,6 @@ def attendance_page():
             att_df = load_attendance()
             now = datetime.now()
             today = now.date()
-            # Check if already checked in today
             already_checked_in = (
                 (att_df['name'] == recognized_name) &
                 (pd.to_datetime(att_df['datetime']).dt.date == today) &
